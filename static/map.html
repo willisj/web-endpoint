@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Live Map</title>
+  <script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1.6.4/jquery.min.js"></script>
+  <style type="text/css" media="screen">
+	html, body{
+		height:100%;
+		margin:0;
+	}
+    #map {
+      position:absolute;
+      top: 90px; bottom: 0; left: 0; right: 200px;
+      border-right: 4px solid black;
+      
+    }
+    #detailsview {		
+		float:right;
+		width:200px;
+		height:100%;
+		background:#ddd;
+	}
+	.car{
+		border-bottom: 1px solid white;
+		padding:2px 4px;
+	}
+	#progress {
+		position:absolute;
+		bottom:0;
+		background:#eed;
+		width:200px;
+		border:2px solid white;
+		padding:2px;
+	}
+	#top {
+		position:absolute;
+		top: 0px; bottom: 50px; left: 0; right: 200px;
+		border-bottom: 4px solid black;
+		height: 90px;
+		background:#000;
+		padding:5px;
+	}
+	.intersection_info{
+		width:500px;
+		background:#fff;
+		height:80px; 
+		display:inline-block;
+		padding:1px;
+	}
+	.intersection_info sup{
+		padding-left:5px;
+		font-size:9px;
+		height:60px
+	}
+	.intersection_info p{
+		margin-top:0px;
+		font-size:14px;
+	}
+	#select_target{
+		left:5px;
+		border-bottom:2px solid black;
+	}
+	#vehicle_target{
+		position:absolute;
+		left:510px;
+	}
+  </style>
+</head>
+<body>
+	<div id=page>
+		<div id="bottom">
+			<div id="map"><p>Loading...</p></div>
+			<div id="detailsview">
+				<div id='progress'>
+					<strong>Status: </strong><span id='status'>Disconnected</span><br>  
+					<strong>Time: </strong><span id='time'></span><br>  
+					<strong>Frame: </strong><span id='frame'></span><br>  
+				</div>
+			</div>
+		</div>
+	</div>
+
+  <script type="text/javascript">
+    var sock;
+    $(document).ready(function(){
+      sock = new WebSocket("ws://" + window.location.hostname + ":8888/sock");
+      sock.onopen = function(){ $('#progress #status').html('Connected');};
+      sock.onerror = function(){ console.log("Websocket error"); $('#progress #status').html('Connection Error');};
+      sock.onclose = function(){ console.log("Websocket disconnected"); $('#progress #status').html('Connection Closed');};
+	  
+	// on a new message over the socket... 
+	sock.onmessage = function(evt){
+        var received_json = JSON.parse(evt.data);
+        console.log(received_json);
+    };
+    });
+  </script>
+</body>
+</html>
