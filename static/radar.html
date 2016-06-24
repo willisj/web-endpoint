@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>Live Data</title>
+		<script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1.6.4/jquery.min.js"></script>
+		<style type="text/css" media="screen">
+html, body{
+	height:100%;
+	margin:0;
+}
+    #canvas {
+	position:absolute;
+	top: 0px; bottom: 0; left: 0; right: 200px;
+	border-right: 4px solid black;
+	background: #FFF;
+    }
+    #detailsview {		
+	    float:right;
+	    width:200px;
+	    height:100%;
+	    background:#ddd;
+    }
+    #progress {
+	    position:absolute;
+	    bottom:0;
+	    background:#eed;
+	    width:200px;
+	    border:2px solid white;
+	    padding:2px;
+    }
+    #page{
+	background: black;
+    }
+    #top {
+	    position:absolute;
+	    top: 0px; bottom: 50px; left: 0; right: 200px;
+	    height: 90px;
+	    padding:5px;
+    }
+		</style>
+	</head>
+	<body>
+		<div id=page>
+			<!--div id="top"></div -->
+			<div id="bottom">
+				<div id="canvas"><canvas id='mainCanvas' ></canvas></div>
+				<div id="detailsview">
+					<div id='progress'>
+						<strong>Status: </strong><span id='status'>Disconnected</span><br>  
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<script type="text/javascript">
+
+// +++++++++++++++++++++++++++++++++++++++++++++
+// +++++++++++++++++++++++++++++++++++++++++++++
+// ++	Configuration
+// +++++++++++++++++++++++++++++++++++++++++++++
+// +++++++++++++++++++++++++++++++++++++++++++++
+var canvas = document.getElementById("mainCanvas");
+var border_padding = 0.10		// In percent
+var radius_d = 300;
+var units = "m";
+// +++++++++++++++++++++++++++++++++++++++++++++
+// +++++++++++++++++++++++++++++++++++++++++++++
+var ctx = canvas.getContext( "2d");
+var scale_x = 1;
+var scale_y = -1;
+var markers; 
+var ev; 
+var sock;
+
+function drawline(x1,y1,x2,y2,color){
+	ctx.strokeStyle=color;
+	ctx.moveTo( x1, y1);
+	ctx.lineTo( x2, y2);
+	ctx.stroke();
+}
+function drawcircle(x,y,radius,color){
+	ctx.fillStyle = color;
+	ctx.strokeStyle="#000000";
+	ctx.beginPath();
+	ctx.arc( x, y, radius, 0, 2*Math.PI);
+	ctx.stroke();
+	ctx.fill();
+}
+function sx(x){
+	var hw = canvas.width / 2;
+	return hw + ( x * scale_x);
+}
+
+function sy(y){
+	var hh = canvas.height / 2;
+	return hh + ( y * scale_y);
+}
+function rotate_around_origin( x, y, angle){
+	if( angle == 0)
+		return { 'x' : x, 'y' : y };
+
+	angle *= -1;
+
+	s = Math.sin(angle );
+	c = Math.cos(angle);
+
+	x_t = ( x * c ) - ( y * s );
+	y_t = ( x * s ) + ( y * c );
+
+
+	console.log(" ( "+ x_t + ", " + y_t + ")");
+
+	return { 'x' : x_t, 'y' : y_t };
+}
+function draw_arrow(){
+	//variables to be used when creating the arrow
+
+	var rotated = rotate_around_origin( 0, 50, ev['heading'] * -1 );
+
+	fromx = 80  + rotated['x'];
+	fromy = 80  + rotated['y'];
+	tox = 80  - rotated['x'];
+	toy = 80  - rotated['y'];
+	var headlen = 5;
+
+	var angle = Math.atan2(toy-fromy,tox-fromx);
+
+	//starting path of the arrow from the start square to the end square and drawing the stroke
+	ctx.beginPath();
+	ctx.moveTo(fromx, fromy);
+	ctx.lineTo(tox, toy);
+	ctx.strokeStyle = "#cc0000";
+	ctx.lineWidth = 10;
+	ctx.stroke();
+
+	//starting a new path from the head of the arrow to one of the sides of the point
+	ctx.beginPath();
+	ctx.moveTo(tox, toy);
+	ctx.lineTo(tox-headlen*Math.cos(angle-Math.PI/7),toy-headlen*Math.sin(angle-Math.PI/7));
+
+	//path from the side point of the arrow, to the other side point
+	ctx.lineTo(tox-headlen*Math.cos(angle+Math.PI/7),toy-headlen*Math.sin(angle+Math.PI/7));
+
+	//path from the side point back to the tip of the arrow, and then again to the opposite side point
+	ctx.lineTo(tox, toy);
+	ctx.lineTo(tox-headlen*Math.cos(angle-Math.PI/7),toy-headlen*Math.sin(angle-Math.PI/7));
+
+	//draws the paths created above
+	ctx.strokeStyle = "#cc0000";
+	ctx.lineWidth = 22;
+	ctx.stroke();
+	ctx.fillStyle = "#cc0000";
+	ctx.fill();
+}
+function draw_marker( marker ){
+	var radius = 9;
+	
+	var rotated = rotate_around_origin(marker['x'] - ev['x'], marker['y'] - ev['y'], ev['heading'] );
+		
+	x = sx(rotated['x']);
+	y = sy(rotated['y']);
+
+	ctx.lineWidth = 2;
+
+	drawcircle(x,y,radius,"#FF0000");
+	
+	dx = (radius + 5) * Math.sin(marker['heading'] + Math.PI - ev['heading']);
+	dy = (radius + 5) * Math.cos(marker['heading'] + Math.PI - ev['heading']);
+
+	drawline(x,y,x-dx,y+dy);
+
+}
+
+function set_scale(){
+	var hw = canvas.width / 2;
+	var hh = canvas.height / 2;
+	var radius = Math.min( hh, hw) * ( 1.0 - border_padding);
+
+	scale_x = radius /  radius_d;
+	scale_y = radius /  radius_d * -1;
+}
+
+/* Resizes the  canvas after a screen change has taken place */
+function resize_canvas(){
+	canvas.width  = window.innerWidth - 220;
+	canvas.height = window.innerHeight;
+	set_scale(radius_d);
+	draw_markers();
+	console.log("Resized canvas: ("+ canvas.width +","+ canvas.height +")" );
+}
+
+/* Draws concentric rings around the center-point */
+function draw_rings( ){
+	var hw = canvas.width / 2;
+	var hh = canvas.height / 2;
+	var radius = Math.min( hh, hw) * ( 1.0 - border_padding);
+	var hradius = radius/2
+	var tick_size = 15;
+
+	ctx.clearRect(0, 0, canvas.width, canvas.height);
+	ctx.lineWidth=2;
+
+	drawcircle( hw, hh, radius,"#FFFFFF");
+
+	drawline( hw - tick_size, hh - hradius, hw + tick_size, hh - hradius,"#000000");
+	drawline( hw - tick_size, hh + hradius, hw + tick_size, hh + hradius,"#000000");
+
+	drawline( hw - hradius, hh - tick_size, hw - hradius, hh + tick_size,"#000000");
+	drawline( hw + hradius, hh - tick_size, hw + hradius, hh + tick_size,"#000000");
+
+	ctx.fillStyle = "#000000";
+	ctx.font = "24px Arial";
+	ctx.fillText( radius_d + " " + units, hw + radius + 10,  hh - 20);
+}
+
+/* Draws a cross through the center of both dimensions */
+function draw_center_mark( ){
+	var hw = canvas.width / 2;
+	var hh = canvas.height / 2;
+	
+	ctx.lineWidth=1;
+	ctx.fillStyle = "#000000";
+	drawline(0, hh, canvas.width, hh);
+	drawline(hw, 0, hw, canvas.height);
+}
+		
+function update_markers(received_json){
+
+
+	if( !'id' in received_json || !'x' in received_json || !'y' in received_json){
+		return false;
+	}
+
+	markers.forEach(function(m){
+		if( m['id'] == received_json['id']){
+			m['x'] = received_json['x'];
+			m['y'] = received_json['y'];
+			return true;
+		}
+	});
+
+	markers.push({'id':received_json['id'],'x':received_json['x'],'y':received_json['y']});
+	return true;
+}
+
+function draw_markers(){
+	draw_rings( );
+	draw_center_mark( );
+	draw_arrow();
+	markers.forEach(draw_marker);
+}
+
+window.addEventListener('resize', resize_canvas, true);
+
+$(document).ready(function(){
+
+	// Prepare 
+	ev = { 'id' : 'EV', 'x' : 0, 'y' : 0 , 'heading': 0};
+	markers = [ 
+			{ 'id' : 1,  'x' : 0, 'y' : 300 , 'heading': 0},
+			{'id' : 2,  'x' : 150, 'y' : -50 , 'heading':Math.PI / 2 }, 
+			{'id' : 3,  'x' : 0, 'y' : -300 , 'heading': Math.PI }
+		];
+
+	// Initialize the anvas
+	resize_canvas();
+	console.log("Canvas Initialized");
+
+	// Initialize the websocket
+	sock = new WebSocket("ws://" + window.location.hostname + ":8888/sock");
+	sock.onopen = function(){ $('#progress #status').html('Connected');};
+	sock.onerror = function(){ console.log("Websocket error"); $('#progress #status').html('Connection Error');};
+	sock.onclose = function(){ console.log("Websocket disconnected"); $('#progress #status').html('Connection Closed');};
+	console.log("Socket Initialized");
+
+	draw_markers();
+
+	// on a new message over the socket... 
+	sock.onmessage = function(evt){
+		var received_json = JSON.parse(evt.data);
+		console.log(received_json);
+
+		update_markers(received_json);
+
+		draw_markers();
+	};
+});
+		</script>
+	</body>
+</html>
