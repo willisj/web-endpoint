@@ -28,7 +28,7 @@ WEBSOCKS = []
 
 class MainHandler(tornado.web.RequestHandler):
     def get(self):
-        self.redirect("/static/map.html")
+        self.redirect("/static/radar.html")
 
 
 class RandomLatLngSender(tornado.web.RequestHandler):
