@@ -169,6 +169,34 @@ function draw_marker( marker ){
 
 	drawline(x,y,x-dx,y+dy);
 
+    if( 'trail' in marker ){
+        var lastX, lastY, first =1; 
+        Object.keys(marker['trail']).forEach(function(key) {
+            if(first){
+                lastX = marker['x'];
+                lastY = marker['y'];
+                first = 0;
+            }
+
+            var rotated1 = rotate_around_origin(marker['trail'][key]['x'] - ev['x'], marker['trail'][key]['y'] - ev['y'], ev['heading'] );
+            var rotated2 = rotate_around_origin(lastX - ev['x'], lastY - ev['y'], ev['heading'] );
+
+            drawline( sx(rotated1['x']), sy(rotated1['y']), sx(rotated2['x']), sy(rotated2['y']), "#000000")
+
+            lastX = marker['trail'][key]['x'];
+            lastY = marker['trail'][key]['y'];
+
+        });
+
+        Object.keys(marker['trail']).forEach(function(key) {
+            var rotated = rotate_around_origin(marker['trail'][key]['x'] - ev['x'], marker['trail'][key]['y'] - ev['y'], ev['heading'] );
+
+            x = sx(rotated['x']);
+            y = sy(rotated['y']);
+
+            drawcircle(x,y,radius/2,"#000088");
+        });
+    }
 }
 
 function set_scale(){
@@ -226,7 +254,6 @@ function draw_center_mark( ){
 		
 function update_markers(received_json){
 
-
 	if( !'id' in received_json || !'x' in received_json || !'y' in received_json){
 		return false;
 	}
@@ -235,11 +262,36 @@ function update_markers(received_json){
 		if( m['id'] == received_json['id']){
 			m['x'] = received_json['x'];
 			m['y'] = received_json['y'];
+
+            if('heading' in received_json){
+                m['heading'] = received_json['heading'];
+            }
+
 			return true;
 		}
 	});
 
-	markers.push({'id':received_json['id'],'x':received_json['x'],'y':received_json['y']});
+    var newMarker = {
+        'id':received_json['id'],
+        'x':received_json['x'],
+        'y':received_json['y']
+    }
+
+    if('heading' in received_json){
+        newMarker['heading'] = received_json['heading'];
+    }
+
+    if('trail' in received_json){
+
+        newMarker['trail'] = {};
+        Object.keys(received_json['trail']).forEach(function(key) {
+            if( 'x' in received_json['trail'][key] && 'y' in received_json['trail'][key]){
+                newMarker['trail'][key] = received_json['trail'][key];
+            }
+        });
+    }
+
+	markers.push(newMarker);
 	return true;
 }
 
@@ -247,6 +299,7 @@ function draw_markers(){
 	draw_rings( );
 	draw_center_mark( );
 	draw_arrow();
+    //TODO draw own path history
 	markers.forEach(draw_marker);
 }
 

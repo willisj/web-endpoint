@@ -42,18 +42,31 @@ class RandomLatLngSender(tornado.web.RequestHandler):
         log.debug("pinging: %r" % WEBSOCKS)
 
         import random
-        latlng = {
-            'lat': random.randint(-90, 90),
-            'lng': random.randint(-45, 45),
+        xy = {
+            'id' : 4, 
+            'x': random.randint(-300, 300),
+            'y': random.randint(-300, 300),
+            'heading': random.uniform(-3.14, 3.14),
+            'trail' : {
+                '0' : { 'x': random.randint(-300, 300),
+                        'y': random.randint(-300, 300)
+                    },
+                '1' : { 'x': random.randint(-90, 300),
+                        'y': random.randint(-35, 300)
+                    },
+                '2' : { 'x': random.randint(-300, 300),
+                        'y': random.randint(-300, 300)
+                    },
+                },
             'title': "Thing!",
             }
 
-        data = json.dumps(latlng)
+        data = json.dumps(xy)
         log.info(u"Sending: %s" % data)
         
         # for demo only
-        # for sock in WEBSOCKS:
-        #    sock.write_message(data)
+        for sock in WEBSOCKS:
+            sock.write_message(data)
 
 
 class WebSocketBroadcaster(tornado.websocket.WebSocketHandler):
